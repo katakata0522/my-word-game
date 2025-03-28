@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>言葉当てゲーム Ver.2</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@   1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        /* 基本的なスタイル */
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 15px;
+            margin-bottom: 20px; /* 下にも少し余白 */
+            background-color: skyblue;
+            color: navy; /* 例: 基本の文字色を濃い青に *
+        }
+
+        /* タイトル */
+        h1 {
+            font-family: "Rounded Mplus 1c", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Arial Rounded MT Bold", sans-serif;
+            font-size: 3em;
+            color: navy;
+            text-shadow: 1px 1px 2px steelblue;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+
+        /* --- ゲーム情報表示エリア --- */
+        .game-info {
+            display: flex;
+            justify-content: space-around;
+            width: 90%; /* 少し広げる */
+            max-width: 550px; /* 最大幅も少し広げる */
+            margin-bottom: 10px;
+            font-weight: bold;
+            flex-wrap: wrap; /* スマホ表示などで折り返すように */
+            gap: 10px; /* 折り返した際の隙間 */
+        }
+        #category-info { color: darkgreen; }
+        #life-info { color: darkred; white-space: nowrap; /* ライフが折り返さないように */ }
+        #score-info { color: darkblue; }
+        /* --- ここまで --- */
+  #life-info {
+        font-size: 1.8em;    /* 文字(ハート)のサイズを大きくする */
+        font-weight: bold;
+        color: darkred;     /* 色はそのまま */
+        margin-top: 5px;     /* 上の要素との隙間 */
+        margin-bottom: 10px; /* 下の要素との隙間 */
+        text-align: center;  /* 中央揃え */
+        white-space: nowrap; /* ハートが途中で折り返さないように */
+    }
+    #timer {
+        font-size: 1em;      /* 文字サイズ */
+        font-weight: bold;
+        color: #4682B4;    /* 少し落ち着いた青色 (SteelBlue) */
+        margin-bottom: 10px; /* 下の要素との隙間 */
+        text-align: center;
+    }
+        /* お題表示エリア */
+        #word-display {
+            font-size: 2em;
+            letter-spacing: 0.5em;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            min-height: 1.5em;
+            background-color: #f8f8f8;
+            text-align: center;
+        }
+
+        /* プレイヤーのターン表示 */
+        #turn-info {
+            margin-bottom: 10px;
+            font-weight: bold;
+            min-height: 1.2em;
+        }
+
+        /* メッセージ表示エリア */
+        #message {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            min-height: 1.2em;
+            color: blue;
+            text-align: center;
+        }
+
+        /* 入力エリア共通 (Gridレイアウト) */
+        .input-area {
+            margin-bottom: 10px;
+            display: grid;
+            /* ラベル(固定幅), 入力欄(残り), ボタン(自動) */
+            grid-template-columns: 200px 1fr auto; /* ラベル幅をここで調整(必要なら変更) */
+            gap: 10px;
+            align-items: center;
+            width: 90%; /* 少し広げる */
+            max-width: 550px; /* 最大幅も少し広げる */
+        }
+        .input-area label {
+            text-align: right; /* 右揃え（コロン位置揃え） */
+        }
+
+        /* テキスト入力欄 */
+        input[type="text"] {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box; /* paddingを含めてwidth 100% */
+            font-size: 1em; /* フォントサイズを標準に */
+        }
+
+        /* ボタン共通 */
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #999;
+            background-color: #eee;
+            font-size: 1em; /* フォントサイズを標準に */
+            white-space: nowrap; /* ボタン内テキストが折り返さないように */
+        }
+        button:hover:not(:disabled) {
+             background-color: #ddd;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* --- ヒントボタンとやり直しボタンのエリア --- */
+        .control-buttons {
+            margin-top: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 15px;
+        }
+        #hint-button { background-color: lightgoldenrodyellow; }
+        #reset-button { background-color: lightcoral; color: white; }
+        /* --- ここまで --- */
+
+        /* 使用済み文字エリア */
+        #used-letters {
+            margin-top: 10px;
+            color: #333;
+            font-size: 0.9em;
+            min-height: 1.2em;
+            width: 90%; /* 少し広げる */
+            max-width: 550px; /* 最大幅も少し広げる */
+            text-align: center;
+            word-break: break-all;
+        }
+  /* ▼▼▼ 高スコアのコツ表示のスタイルを追加 ▼▼▼ */
+    .score-hint {
+        margin-top: 20px; /* 上の要素との隙間を少し広めに */
+        font-size: 1em; /* 少し小さめの文字サイズ */
+        color: #444;       /* 濃いめのグレー */
+        text-align: center; /* 中央揃え */
+        line-height: 1.5;  /* 行間を少し広げる */
+        width: 90%;        /* 幅を他の要素と合わせる */
+        max-width: 550px;
+    }
+        /* 正解時アニメーション */
+        .win-animation {
+            animation: winEffect 0.8s ease-out;
+            color: gold !important;
+            font-weight: bold;
+        }
+       @keyframes winEffect {
+            0% {
+                transform: scale(1.0) rotate(0deg);
+                opacity: 0.5;
+                color: gold;
+                text-shadow: 0 0 5px yellow;
+            }
+            25% {
+                transform: scale(1.2) rotate(-5deg);
+                opacity: 1.0;
+                color: orange;
+                text-shadow: 0 0 10px gold;
+            }
+            50% {
+                transform: scale(1.1) rotate(5deg);
+                opacity: 0.8;
+                color: gold;
+                text-shadow: 0 0 15px yellow;
+            }
+            75% {
+                transform: scale(1.2) rotate(-2deg);
+                opacity: 1.0;
+                color: orange;
+                text-shadow: 0 0 10px gold;
+            }
+            100% {
+                transform: scale(1.0) rotate(0deg);
+                opacity: 1.0;
+                color: gold;
+                text-shadow: 0 0 5px yellow;
+            }
+        }
+        }
+        /* ゲームオーバー時のメッセージ */
+        .game-over-message {
+            color: red !important;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>言葉当てゲーム Ver.2</h1>
+
+    <!-- ゲーム情報表示エリア -->
+    <div class="game-info">
+        <div id="category-info">カテゴリ: ???</div>
+        <div id="score-info">スコア: 0</div>
+    </div>
+
+    <div id="life-info">のこり: 💖💖💖💖💖</div>
+
+    <div id="timer">経過時間: 0秒</div>
+
+    <!-- お題の表示場所 -->
+    <div id="word-display"></div>
+
+    <!-- プレイヤーのターン表示 -->
+    <div id="turn-info"></div>
+
+    <!-- メッセージ表示場所 -->
+    <div id="message"></div>
+
+    <!-- 文字入力エリア -->
+    <div class="input-area">
+        <label for="letter-input">ひらがな一文字を入力:</label>
+        <input type="text" id="letter-input" maxlength="1" autocomplete="off">
+        <button id="guess-button">決定</button>
+    </div>
+
+    <!-- 解答入力エリア -->
+    <div class="input-area">
+        <label for="answer-input">答えが分かったら入力:</label>
+        <input type="text" id="answer-input" autocomplete="off">
+        <button id="answer-button">解答</button>
+    </div>
+
+    <!-- ヒントボタンとやり直しボタン -->
+    <div class="control-buttons">
+        <button id="hint-button">ヒントを見る (1回)</button>
+        <button id="reset-button">やり直す</button>
+    </div>
+
+    <!-- 使用済み文字表示エリア -->
+    <div id="used-letters">使用済み: </div>
+
+  <!-- ▼▼▼ 高スコアのコツ表示を追加 ▼▼▼ -->
+    <div class="score-hint">
+        【高スコアのコツ】<br>
+        早くクリア！ ミスは少なく！ ヒントは使わない！
+    </div>
+
+    <!-- BGM再生用 -->
+    <audio id="bgm" src="bgm.mp3" loop></audio>
+
+    <!-- 効果音用 (ファイル名はご自身で用意したものに合わせてください) -->
+    <audio id="sound-correct" src="correct.mp3"></audio>   <!-- 正解音 -->
+    <audio id="sound-wrong" src="wrong.mp3"></audio>     <!-- 不正解音 -->
+    <audio id="sound-win" src="win.mp3"></audio>         <!-- クリア音 -->
+    <audio id="sound-lose" src="lose.mp3"></audio>       <!-- ゲームオーバー音 -->
+    <audio id="sound-hint" src="hint.mp3"></audio>       <!-- ヒント音 -->
+
+    <!-- JavaScriptファイルを読み込む -->
+   <script src="game_ver2.js"></script> <!-- 手順1で変更した名前に合わせる -->
+<!-- これはテスト用のコメントです -->
+
+</body>
+</html>
