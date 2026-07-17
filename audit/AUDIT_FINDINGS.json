@@ -1,0 +1,44 @@
+[
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 263,
+    "message": "Missing local audio src: bgm.mp3"
+  },
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 266,
+    "message": "Missing local audio src: correct.mp3"
+  },
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 267,
+    "message": "Missing local audio src: wrong.mp3"
+  },
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 268,
+    "message": "Missing local audio src: win.mp3"
+  },
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 269,
+    "message": "Missing local audio src: lose.mp3"
+  },
+  {
+    "severity": "HIGH",
+    "category": "broken-reference",
+    "path": "index.html",
+    "line": 270,
+    "message": "Missing local audio src: hint.mp3"
+  }
+]
