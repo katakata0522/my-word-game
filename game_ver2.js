@@ -221,7 +221,6 @@ function initializeGame() {
     updateTimerDisplay(); // 最初に0秒を表示
     timerIntervalId = setInterval(updateTimerDisplay, 1000); // 1秒ごとに更新
 
-    console.log("今回のお題:", currentWord, "カテゴリ:", currentCategory);
 }
 
 /**
