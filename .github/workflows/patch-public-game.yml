@@ -1,0 +1,95 @@
+name: One-time word game quality patch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/patch-public-game.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-target-and-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/public-game-quality
+          fetch-depth: 0
+
+      - name: Patch and verify game files
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          html_path = Path('index.html')
+          html = html_path.read_text(encoding='utf-8')
+          original_html = html
+
+          replacements = {
+              'https://cdn.jsdelivr.net/npm/canvas-confetti@   1.9.3/dist/confetti.browser.min.js':
+                  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js',
+              'color: navy; /* 例: 基本の文字色を濃い青に *':
+                  'color: navy; /* 例: 基本の文字色を濃い青に */',
+              '''        }
+              /* ゲームオーバー時のメッセージ */''':
+                  '''        /* ゲームオーバー時のメッセージ */'''
+          }
+
+          for old, new in replacements.items():
+              if html.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one HTML match for: {old!r}; found {html.count(old)}')
+              html = html.replace(old, new, 1)
+
+          if html == original_html:
+              raise SystemExit('No HTML changes were made')
+          if '@   1.9.3' in html or '濃い青に *\n' in html:
+              raise SystemExit('Broken HTML/CSS markers remain')
+          html_path.write_text(html, encoding='utf-8')
+
+          js_path = Path('game_ver2.js')
+          js = js_path.read_text(encoding='utf-8')
+          answer_log = '    console.log("今回のお題:", currentWord, "カテゴリ:", currentCategory);\n'
+          if js.count(answer_log) != 1:
+              raise SystemExit(f'Expected one answer log, found {js.count(answer_log)}')
+          js = js.replace(answer_log, '', 1)
+          if 'console.log("今回のお題:"' in js:
+              raise SystemExit('Answer log remains')
+          js_path.write_text(js, encoding='utf-8')
+          PY
+
+          node --check game_ver2.js
+
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          assert 'canvas-confetti@1.9.3/dist/confetti.browser.min.js' in html
+          assert 'color: navy; /* 例: 基本の文字色を濃い青に */' in html
+          assert html.count('@keyframes winEffect') == 1
+          assert 'console.log("今回のお題:"' not in Path('game_ver2.js').read_text(encoding='utf-8')
+          print('Targeted checks passed')
+          PY
+
+          git config user.name "chatgpt-coding-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html game_ver2.js
+          git commit -m "fix: repair public word game assets and styles"
+          git push origin HEAD:fix/public-game-quality
+
+      - name: Remove one-time workflow from main
+        if: always()
+        shell: bash
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          if [ -f .github/workflows/patch-public-game.yml ]; then
+            git rm .github/workflows/patch-public-game.yml
+            git config user.name "chatgpt-coding-agent"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: remove one-time word game workflow"
+            git push origin HEAD:main
+          fi
