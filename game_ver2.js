@@ -16,12 +16,12 @@ const categoryInfoElement = document.getElementById('category-info');
 const lifeInfoElement = document.getElementById('life-info');
 const scoreInfoElement = document.getElementById('score-info');
 const hintButton = document.getElementById('hint-button');
-const bgmAudio = document.getElementById('bgm');
-const soundCorrect = document.getElementById('sound-correct');
-const soundWrong = document.getElementById('sound-wrong');
-const soundWin = document.getElementById('sound-win');
-const soundLose = document.getElementById('sound-lose');
-const soundHint = document.getElementById('sound-hint');
+const bgmAudio = window.gameAudio.bgm;
+const soundCorrect = window.gameAudio.effects.correct;
+const soundWrong = window.gameAudio.effects.wrong;
+const soundWin = window.gameAudio.effects.win;
+const soundLose = window.gameAudio.effects.lose;
+const soundHint = window.gameAudio.effects.hint;
 
 
 // --- 2. ゲームの状態を覚えておくための箱 (変数) ---
