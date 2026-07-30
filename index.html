@@ -3,326 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>言葉当てゲーム Ver.2</title>
+    <meta name="theme-color" content="#dff4fb">
+    <meta name="description" content="1人でも2人でも遊べる、ひらがなの言葉当てゲーム。難易度とラウンド数を選んで、自己ベストや対戦勝利を目指そう。">
+    <title>言葉当てゲーム Ver.3</title>
+    <link rel="stylesheet" href="styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-    <style>
-        /* 基本的なスタイル */
-        body {
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 15px;
-            margin-bottom: 20px; /* 下にも少し余白 */
-            padding: 0 16px;
-            box-sizing: border-box;
-            background-color: skyblue;
-            color: navy; /* 例: 基本の文字色を濃い青に */
-        }
-
-        /* タイトル */
-        h1 {
-            font-family: "Rounded Mplus 1c", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Arial Rounded MT Bold", sans-serif;
-            font-size: 3em;
-            color: navy;
-            text-shadow: 1px 1px 2px steelblue;
-            margin-top: 15px;
-            margin-bottom: 10px;
-        }
-
-        /* --- ゲーム情報表示エリア --- */
-        .game-info {
-            display: flex;
-            justify-content: space-around;
-            width: 90%; /* 少し広げる */
-            max-width: 550px; /* 最大幅も少し広げる */
-            margin-bottom: 10px;
-            font-weight: bold;
-            flex-wrap: wrap; /* スマホ表示などで折り返すように */
-            gap: 10px; /* 折り返した際の隙間 */
-        }
-        #category-info { color: darkgreen; }
-        #life-info { color: darkred; white-space: nowrap; /* ライフが折り返さないように */ }
-        #score-info { color: darkblue; }
-        /* --- ここまで --- */
-  #life-info {
-        font-size: 1.8em;    /* 文字(ハート)のサイズを大きくする */
-        font-weight: bold;
-        color: darkred;     /* 色はそのまま */
-        margin-top: 5px;     /* 上の要素との隙間 */
-        margin-bottom: 10px; /* 下の要素との隙間 */
-        text-align: center;  /* 中央揃え */
-        white-space: nowrap; /* ハートが途中で折り返さないように */
-    }
-    #timer {
-        font-size: 1em;      /* 文字サイズ */
-        font-weight: bold;
-        color: #4682B4;    /* 少し落ち着いた青色 (SteelBlue) */
-        margin-bottom: 10px; /* 下の要素との隙間 */
-        text-align: center;
-    }
-        /* お題表示エリア */
-        #word-display {
-            font-size: 2em;
-            letter-spacing: 0.5em;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            padding: 5px 10px;
-            min-height: 1.5em;
-            background-color: #f8f8f8;
-            text-align: center;
-            width: 90%;
-            max-width: 550px;
-            box-sizing: border-box;
-            overflow-wrap: anywhere;
-        }
-
-        /* プレイヤーのターン表示 */
-        #turn-info {
-            margin-bottom: 10px;
-            font-weight: bold;
-            min-height: 1.2em;
-        }
-
-        /* メッセージ表示エリア */
-        #message {
-            margin-top: 10px;
-            margin-bottom: 10px;
-            font-weight: bold;
-            min-height: 1.2em;
-            color: blue;
-            text-align: center;
-        }
-
-        /* 入力エリア共通 (Gridレイアウト) */
-        .input-area {
-            margin-bottom: 10px;
-            display: grid;
-            /* ラベル(固定幅), 入力欄(残り), ボタン(自動) */
-            grid-template-columns: 200px 1fr auto; /* ラベル幅をここで調整(必要なら変更) */
-            gap: 10px;
-            align-items: center;
-            width: 90%; /* 少し広げる */
-            max-width: 550px; /* 最大幅も少し広げる */
-        }
-        .input-area label {
-            text-align: right; /* 右揃え（コロン位置揃え） */
-        }
-
-        /* テキスト入力欄 */
-        input[type="text"] {
-            padding: 8px;
-            width: 100%;
-            box-sizing: border-box; /* paddingを含めてwidth 100% */
-            font-size: 1em; /* フォントサイズを標準に */
-        }
-
-        /* ボタン共通 */
-        button {
-            padding: 8px 15px;
-            min-height: 44px;
-            cursor: pointer;
-            border-radius: 5px;
-            border: 1px solid #999;
-            background-color: #eee;
-            font-size: 1em; /* フォントサイズを標準に */
-            white-space: nowrap; /* ボタン内テキストが折り返さないように */
-        }
-        button:hover:not(:disabled) {
-             background-color: #ddd;
-        }
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-        button:focus-visible,
-        input:focus-visible {
-            outline: 3px solid #005fcc;
-            outline-offset: 2px;
-        }
-
-        /* --- ヒントボタンとやり直しボタンのエリア --- */
-        .control-buttons {
-            margin-top: 5px;
-            margin-bottom: 10px;
-            display: flex;
-            gap: 15px;
-        }
-        #hint-button { background-color: lightgoldenrodyellow; }
-        #audio-toggle-button {
-            background-color: #e8f1fb;
-            color: #183b5b;
-        }
-        #audio-toggle-button[aria-pressed="false"] {
-            background-color: #e2e2e2;
-            color: #555;
-        }
-        #reset-button { background-color: lightcoral; color: white; }
-        /* --- ここまで --- */
-
-        /* 使用済み文字エリア */
-        #used-letters {
-            margin-top: 10px;
-            color: #333;
-            font-size: 0.9em;
-            min-height: 1.2em;
-            width: 90%; /* 少し広げる */
-            max-width: 550px; /* 最大幅も少し広げる */
-            text-align: center;
-            word-break: break-all;
-        }
-  /* ▼▼▼ 高スコアのコツ表示のスタイルを追加 ▼▼▼ */
-    .score-hint {
-        margin-top: 20px; /* 上の要素との隙間を少し広めに */
-        font-size: 1em; /* 少し小さめの文字サイズ */
-        color: #444;       /* 濃いめのグレー */
-        text-align: center; /* 中央揃え */
-        line-height: 1.5;  /* 行間を少し広げる */
-        width: 90%;        /* 幅を他の要素と合わせる */
-        max-width: 550px;
-    }
-        /* 正解時アニメーション */
-        .win-animation {
-            animation: winEffect 0.8s ease-out;
-            color: gold !important;
-            font-weight: bold;
-        }
-       @keyframes winEffect {
-            0% {
-                transform: scale(1.0) rotate(0deg);
-                opacity: 0.5;
-                color: gold;
-                text-shadow: 0 0 5px yellow;
-            }
-            25% {
-                transform: scale(1.2) rotate(-5deg);
-                opacity: 1.0;
-                color: orange;
-                text-shadow: 0 0 10px gold;
-            }
-            50% {
-                transform: scale(1.1) rotate(5deg);
-                opacity: 0.8;
-                color: gold;
-                text-shadow: 0 0 15px yellow;
-            }
-            75% {
-                transform: scale(1.2) rotate(-2deg);
-                opacity: 1.0;
-                color: orange;
-                text-shadow: 0 0 10px gold;
-            }
-            100% {
-                transform: scale(1.0) rotate(0deg);
-                opacity: 1.0;
-                color: gold;
-                text-shadow: 0 0 5px yellow;
-            }
-        }
-        /* ゲームオーバー時のメッセージ */
-        .game-over-message {
-            color: red !important;
-            font-weight: bold;
-        }
-
-        @media (max-width: 600px) {
-            body {
-                margin-top: 8px;
-                padding: 0 12px;
-            }
-
-            h1 {
-                font-size: 2.2em;
-                line-height: 1.2;
-                text-align: center;
-            }
-
-            .input-area {
-                grid-template-columns: minmax(0, 1fr) auto;
-                gap: 8px;
-                width: 100%;
-            }
-
-            .input-area label {
-                grid-column: 1 / -1;
-                text-align: left;
-            }
-
-            .input-area input {
-                min-width: 0;
-                min-height: 44px;
-            }
-
-            .control-buttons {
-                width: 100%;
-                gap: 8px;
-                flex-wrap: wrap;
-            }
-
-            .control-buttons button {
-                flex: 1 1 auto;
-            }
-        }
-
-    </style>
 </head>
 <body>
+    <main class="app-shell" id="app">
+        <section class="screen start-screen" id="start-screen" aria-labelledby="game-title">
+            <header class="hero">
+                <p class="eyebrow">ひらがなでひらめく</p>
+                <h1 id="game-title">言葉当てゲーム <span>Ver.3</span></h1>
+                <p class="hero-copy">一文字ずつ考える。分かったら、一気に答える。</p>
+            </header>
 
-    <h1>言葉当てゲーム Ver.2</h1>
+            <form class="setup-card" id="setup-form">
+                <fieldset class="mode-fieldset">
+                    <legend>何人で遊びますか？</legend>
+                    <div class="mode-options">
+                        <label class="mode-card">
+                            <input type="radio" name="game-mode" value="solo" checked>
+                            <span class="mode-title">1人で遊ぶ</span>
+                            <span class="mode-description">スコアと自己ベストに挑戦</span>
+                        </label>
+                        <label class="mode-card">
+                            <input type="radio" name="game-mode" value="versus">
+                            <span class="mode-title">2人で遊ぶ</span>
+                            <span class="mode-description">1台を交互に使う得点対戦</span>
+                        </label>
+                    </div>
+                </fieldset>
 
-    <!-- ゲーム情報表示エリア -->
-    <div class="game-info">
-        <div id="category-info">カテゴリ: ???</div>
-        <div id="score-info">スコア: 0</div>
-    </div>
+                <div class="player-settings" id="player-settings" hidden>
+                    <label>
+                        プレイヤー1
+                        <input type="text" id="player-one-name" maxlength="12" autocomplete="off" placeholder="プレイヤー1">
+                    </label>
+                    <label>
+                        プレイヤー2
+                        <input type="text" id="player-two-name" maxlength="12" autocomplete="off" placeholder="プレイヤー2">
+                    </label>
+                </div>
 
-    <div id="life-info">のこり: 💖💖💖💖💖</div>
+                <div class="setup-grid">
+                    <label>
+                        難易度
+                        <select id="difficulty-select">
+                            <option value="easy">かんたん（ライフ8）</option>
+                            <option value="normal" selected>ふつう（ライフ7）</option>
+                            <option value="hard">むずかしい（ライフ6）</option>
+                        </select>
+                    </label>
+                    <label>
+                        ラウンド数
+                        <select id="round-count-select">
+                            <option value="1">1ラウンド</option>
+                            <option value="3" selected>3ラウンド</option>
+                            <option value="5">5ラウンド</option>
+                        </select>
+                    </label>
+                </div>
 
-    <div id="timer">経過時間: 0秒</div>
+                <p class="best-score" id="best-score">ふつうの自己ベスト: 0点</p>
 
-    <!-- お題の表示場所 -->
-    <div id="word-display"></div>
+                <div class="setup-actions">
+                    <button type="submit" class="button button-primary button-large">ゲームを始める</button>
+                    <button type="button" class="button button-neutral audio-toggle" aria-pressed="true">音声: オン</button>
+                </div>
+            </form>
 
-    <!-- プレイヤーのターン表示 -->
-    <div id="turn-info" aria-live="polite"></div>
+            <details class="rules-card">
+                <summary>遊び方を見る</summary>
+                <div class="rules-content" id="rules-content">
+                    <p>隠れた言葉を、ひらがな一文字ずつ当てます。答えが分かったら単語で解答できます。</p>
+                    <ul>
+                        <li>一文字の不正解でライフが1減ります。</li>
+                        <li>単語解答の不正解はライフが2減ります。</li>
+                        <li>使用済みの文字や答えは、もう一度入力してもペナルティになりません。</li>
+                        <li>2人用は、有効な回答をするたびに交代します。</li>
+                    </ul>
+                </div>
+            </details>
+        </section>
 
-    <!-- メッセージ表示場所 -->
-    <div id="message" role="status" aria-live="polite"></div>
+        <section class="screen game-screen" id="game-screen" aria-labelledby="round-heading" hidden>
+            <header class="game-toolbar">
+                <div>
+                    <p class="toolbar-label" id="mode-label">1人プレイ</p>
+                    <h2 id="round-heading">ラウンド 1 / 3</h2>
+                </div>
+                <div class="toolbar-actions">
+                    <button type="button" class="icon-button audio-toggle" aria-pressed="true">音声: オン</button>
+                    <button type="button" class="icon-button" id="quit-button">中断</button>
+                </div>
+            </header>
 
-    <!-- 文字入力エリア -->
-    <div class="input-area">
-        <label for="letter-input">ひらがな一文字を入力:</label>
-        <input type="text" id="letter-input" maxlength="1" autocomplete="off">
-        <button type="button" id="guess-button">決定</button>
-    </div>
+            <div class="scoreboard" id="scoreboard"></div>
 
-    <!-- 解答入力エリア -->
-    <div class="input-area">
-        <label for="answer-input">答えが分かったら入力:</label>
-        <input type="text" id="answer-input" autocomplete="off">
-        <button type="button" id="answer-button">解答</button>
-    </div>
+            <section class="word-stage" aria-labelledby="category-label">
+                <p class="category-chip" id="category-label">カテゴリ</p>
+                <div class="word-display" id="word-display" role="status" aria-live="polite" aria-label="隠された言葉"></div>
+                <div class="round-status">
+                    <p class="life-status" id="life-status"></p>
+                    <p class="timer" id="timer">経過時間: 0秒</p>
+                </div>
+                <p class="turn-info" id="turn-info" aria-live="polite"></p>
+            </section>
 
-    <!-- ヒントボタンとやり直しボタン -->
-    <div class="control-buttons">
-        <button type="button" id="hint-button">ヒントを見る (1回)</button>
-        <button type="button" id="audio-toggle-button" aria-pressed="true">音声: オン</button>
-        <button type="button" id="reset-button">やり直す</button>
-    </div>
+            <p class="message" id="message" role="status" aria-live="polite">ゲーム開始！</p>
 
-    <!-- 使用済み文字表示エリア -->
-    <div id="used-letters">使用済み: </div>
+            <section class="guess-card" aria-labelledby="letter-heading">
+                <h3 id="letter-heading">一文字を当てる</h3>
+                <form class="answer-row" id="letter-form">
+                    <label class="sr-only" for="letter-input">ひらがな一文字</label>
+                    <input type="text" id="letter-input" maxlength="2" inputmode="text" autocomplete="off" placeholder="ひらがな一文字">
+                    <button type="submit" class="button button-primary">決定</button>
+                </form>
+                <p class="used-letters" id="used-letters">使用済み: なし</p>
+            </section>
 
-  <!-- ▼▼▼ 高スコアのコツ表示を追加 ▼▼▼ -->
-    <div class="score-hint">
-        【高スコアのコツ】<br>
-        早くクリア！ ミスは少なく！ ヒントは使わない！
-    </div>
+            <section class="direct-answer">
+                <button type="button" class="answer-toggle button button-secondary" id="answer-toggle" aria-expanded="false" aria-controls="answer-panel">
+                    答えが分かった
+                </button>
+                <div class="answer-panel" id="answer-panel" hidden>
+                    <p>単語解答を外すとライフが2減ります。</p>
+                    <form class="answer-row" id="answer-form">
+                        <label class="sr-only" for="answer-input">答えを入力</label>
+                        <input type="text" id="answer-input" autocomplete="off" placeholder="答えをひらがなで入力">
+                        <button type="submit" class="button button-primary">解答</button>
+                    </form>
+                    <details class="used-answers-details" id="used-answers-details" hidden>
+                        <summary>解答済みの言葉</summary>
+                        <p id="used-answers"></p>
+                    </details>
+                </div>
+            </section>
 
-    <!-- JavaScriptファイルを読み込む -->
+            <div class="game-controls">
+                <button type="button" class="button button-hint" id="hint-button">ヒントを見る</button>
+            </div>
+        </section>
+
+        <section class="screen result-card" id="round-result-screen" aria-labelledby="round-result-title" hidden>
+            <p class="result-kicker" id="round-result-kicker">ラウンド結果</p>
+            <h2 id="round-result-title">正解！</h2>
+            <p class="result-word" id="round-result-word"></p>
+            <div class="result-scores" id="round-result-scores"></div>
+            <button type="button" class="button button-primary button-large" id="next-round-button">次のラウンドへ</button>
+        </section>
+
+        <section class="screen result-card final-result" id="final-result-screen" aria-labelledby="final-result-title" hidden>
+            <p class="result-kicker">最終結果</p>
+            <h2 id="final-result-title">ゲーム終了</h2>
+            <p class="final-summary" id="final-summary"></p>
+            <div class="final-scores" id="final-scores"></div>
+            <dl class="session-stats" id="session-stats"></dl>
+            <div class="final-actions">
+                <button type="button" class="button button-primary button-large" id="replay-button">同じ設定でもう一度</button>
+                <button type="button" class="button button-secondary" id="overtime-button" hidden>延長戦をする</button>
+                <button type="button" class="button button-neutral" id="settings-button">設定に戻る</button>
+            </div>
+        </section>
+    </main>
+
+    <dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+        <form method="dialog">
+            <h2 id="confirm-title">確認</h2>
+            <p id="confirm-message"></p>
+            <div class="dialog-actions">
+                <button type="submit" value="cancel" class="button button-neutral">キャンセル</button>
+                <button type="submit" value="confirm" class="button button-primary" id="confirm-action-button">続ける</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="words.js"></script>
+    <script src="game-state.js"></script>
+    <script src="storage.js"></script>
     <script src="audio-engine.js"></script>
-    <script src="game_ver2.js"></script> <!-- 手順1で変更した名前に合わせる -->
-<!-- これはテスト用のコメントです -->
-
+    <script src="game-ui.js"></script>
 </body>
 </html>
