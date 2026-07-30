@@ -14,6 +14,8 @@
             align-items: center;
             margin-top: 15px;
             margin-bottom: 20px; /* 下にも少し余白 */
+            padding: 0 16px;
+            box-sizing: border-box;
             background-color: skyblue;
             color: navy; /* 例: 基本の文字色を濃い青に */
         }
@@ -69,6 +71,10 @@
             min-height: 1.5em;
             background-color: #f8f8f8;
             text-align: center;
+            width: 90%;
+            max-width: 550px;
+            box-sizing: border-box;
+            overflow-wrap: anywhere;
         }
 
         /* プレイヤーのターン表示 */
@@ -114,6 +120,7 @@
         /* ボタン共通 */
         button {
             padding: 8px 15px;
+            min-height: 44px;
             cursor: pointer;
             border-radius: 5px;
             border: 1px solid #999;
@@ -128,6 +135,11 @@
             cursor: not-allowed;
             opacity: 0.6;
         }
+        button:focus-visible,
+        input:focus-visible {
+            outline: 3px solid #005fcc;
+            outline-offset: 2px;
+        }
 
         /* --- ヒントボタンとやり直しボタンのエリア --- */
         .control-buttons {
@@ -137,6 +149,14 @@
             gap: 15px;
         }
         #hint-button { background-color: lightgoldenrodyellow; }
+        #audio-toggle-button {
+            background-color: #e8f1fb;
+            color: #183b5b;
+        }
+        #audio-toggle-button[aria-pressed="false"] {
+            background-color: #e2e2e2;
+            color: #555;
+        }
         #reset-button { background-color: lightcoral; color: white; }
         /* --- ここまで --- */
 
@@ -205,6 +225,44 @@
             font-weight: bold;
         }
 
+        @media (max-width: 600px) {
+            body {
+                margin-top: 8px;
+                padding: 0 12px;
+            }
+
+            h1 {
+                font-size: 2.2em;
+                line-height: 1.2;
+                text-align: center;
+            }
+
+            .input-area {
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 8px;
+                width: 100%;
+            }
+
+            .input-area label {
+                grid-column: 1 / -1;
+                text-align: left;
+            }
+
+            .input-area input {
+                min-width: 0;
+            }
+
+            .control-buttons {
+                width: 100%;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .control-buttons button {
+                flex: 1 1 auto;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -225,29 +283,30 @@
     <div id="word-display"></div>
 
     <!-- プレイヤーのターン表示 -->
-    <div id="turn-info"></div>
+    <div id="turn-info" aria-live="polite"></div>
 
     <!-- メッセージ表示場所 -->
-    <div id="message"></div>
+    <div id="message" role="status" aria-live="polite"></div>
 
     <!-- 文字入力エリア -->
     <div class="input-area">
         <label for="letter-input">ひらがな一文字を入力:</label>
         <input type="text" id="letter-input" maxlength="1" autocomplete="off">
-        <button id="guess-button">決定</button>
+        <button type="button" id="guess-button">決定</button>
     </div>
 
     <!-- 解答入力エリア -->
     <div class="input-area">
         <label for="answer-input">答えが分かったら入力:</label>
         <input type="text" id="answer-input" autocomplete="off">
-        <button id="answer-button">解答</button>
+        <button type="button" id="answer-button">解答</button>
     </div>
 
     <!-- ヒントボタンとやり直しボタン -->
     <div class="control-buttons">
-        <button id="hint-button">ヒントを見る (1回)</button>
-        <button id="reset-button">やり直す</button>
+        <button type="button" id="hint-button">ヒントを見る (1回)</button>
+        <button type="button" id="audio-toggle-button" aria-pressed="true">音声: オン</button>
+        <button type="button" id="reset-button">やり直す</button>
     </div>
 
     <!-- 使用済み文字表示エリア -->
