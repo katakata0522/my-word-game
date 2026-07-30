@@ -1,0 +1,14 @@
+{
+  "name": "my-word-game",
+  "version": "3.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/static-check.cjs && node tests/audio-engine.cjs && node tests/game-smoke.cjs && node tests/words.cjs && node tests/storage.cjs",
+    "test:e2e": "playwright test",
+    "validate:html": "html-validate index.html"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "html-validate": "11.6.0"
+  }
+}
