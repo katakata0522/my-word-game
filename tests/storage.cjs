@@ -34,12 +34,14 @@ assert.deepEqual(api.loadSettings(), {
     soundEnabled: false
 });
 
-let record = api.recordSoloScore("hard", 1200);
+let record = api.recordSoloScore("hard", 3, 1200);
 assert.equal(record.isNewBest, true);
 assert.equal(record.best, 1200);
-record = api.recordSoloScore("hard", 900);
+record = api.recordSoloScore("hard", 3, 900);
 assert.equal(record.isNewBest, false);
 assert.equal(record.best, 1200);
+assert.equal(api.getBestScore("hard", 3), 1200);
+assert.equal(api.getBestScore("hard", 1), 0);
 
 const recent = api.rememberWords([
     "りんご", "みかん", "りんご", "ばなな", "すいか",
@@ -50,6 +52,36 @@ assert.equal(new Set(recent).size, 10);
 
 assert.equal(api.incrementPlayCount(), 1);
 assert.equal(api.incrementPlayCount(), 2);
+
+let stats = api.recordCompletedSession({
+    roundsWon: 2,
+    roundsLost: 1,
+    totalTime: 75
+});
+assert.equal(stats.gamesCompleted, 1);
+assert.equal(stats.roundsWon, 2);
+
+let daily = api.recordDailyResult("2026-07-29", {
+    score: 800,
+    won: true,
+    elapsedSeconds: 20
+});
+assert.equal(daily.isFirstAttempt, true);
+assert.equal(daily.stats.currentDailyStreak, 1);
+daily = api.recordDailyResult("2026-07-30", {
+    score: 900,
+    won: true,
+    elapsedSeconds: 18
+});
+assert.equal(daily.stats.currentDailyStreak, 2);
+assert.equal(daily.stats.bestDailyStreak, 2);
+const duplicateDaily = api.recordDailyResult("2026-07-30", {
+    score: 9999,
+    won: true,
+    elapsedSeconds: 1
+});
+assert.equal(duplicateDaily.isFirstAttempt, false);
+assert.equal(duplicateDaily.record.score, 900);
 
 const broken = createStorage({
     getItem() {
