@@ -4,6 +4,8 @@
     let audioContext = null;
     let bgmIntervalId = null;
     let bgmSession = 0;
+    let muted = false;
+    const activeOscillators = new Set();
 
     function getAudioContext() {
         const AudioContextClass = root.AudioContext || root.webkitAudioContext;
@@ -19,6 +21,7 @@
     }
 
     function playTone(frequency, duration, type = 'sine', volume = 0.05, delay = 0) {
+        if (muted) return;
         const context = getAudioContext();
         if (!context) return;
 
@@ -35,8 +38,24 @@
 
         oscillator.connect(gain);
         gain.connect(context.destination);
+        activeOscillators.add(oscillator);
+        oscillator.addEventListener('ended', () => {
+            activeOscillators.delete(oscillator);
+            oscillator.disconnect();
+            gain.disconnect();
+        }, { once: true });
         oscillator.start(startAt);
         oscillator.stop(endAt + 0.02);
+    }
+
+    function stopActiveTones() {
+        activeOscillators.forEach(oscillator => {
+            try {
+                oscillator.stop();
+            } catch (_) {
+                activeOscillators.delete(oscillator);
+            }
+        });
     }
 
     function playSequence(notes, type = 'sine', volume = 0.05) {
@@ -91,6 +110,7 @@
             clearInterval(bgmIntervalId);
             bgmIntervalId = null;
         }
+        stopActiveTones();
     }
 
     const effects = {
@@ -119,8 +139,19 @@
         ], 'sine', 0.055))
     };
 
+    const bgm = createAudioHandle(startBgm, stopBgm);
+
+    function setMuted(value) {
+        muted = Boolean(value);
+        if (muted) {
+            bgm.pause();
+        }
+    }
+
     root.gameAudio = {
-        bgm: createAudioHandle(startBgm, stopBgm),
-        effects
+        bgm,
+        effects,
+        isMuted: () => muted,
+        setMuted
     };
 })(window);
