@@ -7,7 +7,6 @@
     <meta name="description" content="1人でも2人でも遊べる、ひらがなの言葉当てゲーム。難易度とラウンド数を選んで、自己ベストや対戦勝利を目指そう。">
     <title>言葉当てゲーム Ver.3</title>
     <link rel="stylesheet" href="styles.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 </head>
 <body>
     <main class="app-shell" id="app">
@@ -15,10 +14,20 @@
             <header class="hero">
                 <p class="eyebrow">ひらがなでひらめく</p>
                 <h1 id="game-title">言葉当てゲーム <span>Ver.3</span></h1>
-                <p class="hero-copy">一文字ずつ考える。分かったら、一気に答える。</p>
+                <p class="hero-copy">手がかりを読み、一文字ずつ考える。分かったら、一気に答える。</p>
             </header>
 
+            <section class="daily-card" aria-labelledby="daily-title">
+                <div>
+                    <p class="daily-label">毎日ひとつ、同じお題</p>
+                    <h2 id="daily-title">今日の一問</h2>
+                    <p class="daily-status" id="daily-status">今日の記録はまだありません。</p>
+                </div>
+                <button type="button" class="button button-primary" id="daily-start-button">挑戦する</button>
+            </section>
+
             <form class="setup-card" id="setup-form">
+                <h2 class="section-title">自由に遊ぶ</h2>
                 <fieldset class="mode-fieldset">
                     <legend>何人で遊びますか？</legend>
                     <div class="mode-options">
@@ -73,15 +82,19 @@
                 </div>
             </form>
 
+            <p class="lifetime-stats" id="lifetime-stats">これまでの成績を読み込んでいます。</p>
+
             <details class="rules-card">
                 <summary>遊び方を見る</summary>
                 <div class="rules-content" id="rules-content">
                     <p>隠れた言葉を、ひらがな一文字ずつ当てます。答えが分かったら単語で解答できます。</p>
                     <ul>
                         <li>一文字の不正解でライフが1減ります。</li>
-                        <li>単語解答の不正解はライフが2減ります。</li>
+                        <li>1人用の単語解答ミスはライフが2減ります。</li>
+                        <li>2人用の単語解答ミスは回答者が100点減点されます。</li>
                         <li>使用済みの文字や答えは、もう一度入力してもペナルティになりません。</li>
                         <li>2人用は、有効な回答をするたびに交代します。</li>
+                        <li>文字を開く追加ヒントは150点を使います。</li>
                     </ul>
                 </div>
             </details>
@@ -103,6 +116,10 @@
 
             <section class="word-stage" aria-labelledby="category-label">
                 <p class="category-chip" id="category-label">カテゴリ</p>
+                <div class="meaning-clue">
+                    <span>ことばの手がかり</span>
+                    <p id="meaning-hint"></p>
+                </div>
                 <div class="word-display" id="word-display" role="status" aria-live="polite" aria-label="隠された言葉"></div>
                 <div class="round-status">
                     <p class="life-status" id="life-status"></p>
@@ -162,6 +179,7 @@
             <dl class="session-stats" id="session-stats"></dl>
             <div class="final-actions">
                 <button type="button" class="button button-primary button-large" id="replay-button">同じ設定でもう一度</button>
+                <button type="button" class="button button-secondary" id="share-button" hidden>結果を共有</button>
                 <button type="button" class="button button-secondary" id="overtime-button" hidden>延長戦をする</button>
                 <button type="button" class="button button-neutral" id="settings-button">設定に戻る</button>
             </div>
