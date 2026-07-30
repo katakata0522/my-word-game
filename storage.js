@@ -10,7 +10,9 @@
         settings: `${PREFIX}:settings`,
         bestScores: `${PREFIX}:bestScores`,
         recentWords: `${PREFIX}:recentWords`,
-        playCount: `${PREFIX}:playCount`
+        playCount: `${PREFIX}:playCount`,
+        lifetimeStats: `${PREFIX}:lifetimeStats`,
+        dailyResults: `${PREFIX}:dailyResults`
     };
 
     function read(key, fallback) {
@@ -51,19 +53,28 @@
     }
 
     function getBestScores() {
-        return {
-            easy: 0,
-            normal: 0,
-            hard: 0,
-            ...read(keys.bestScores, {})
-        };
+        return read(keys.bestScores, {});
     }
 
-    function recordSoloScore(difficulty, score) {
+    function bestScoreKey(difficulty, roundCount) {
+        return `${difficulty}:${Number(roundCount) || 3}`;
+    }
+
+    function getBestScore(difficulty, roundCount) {
         const scores = getBestScores();
-        const previous = scores[difficulty] || 0;
+        const key = bestScoreKey(difficulty, roundCount);
+        const legacyScore = Number(roundCount) === 3
+            ? Number(scores[difficulty]) || 0
+            : 0;
+        return Number(scores[key]) || legacyScore;
+    }
+
+    function recordSoloScore(difficulty, roundCount, score) {
+        const scores = getBestScores();
+        const key = bestScoreKey(difficulty, roundCount);
+        const previous = getBestScore(difficulty, roundCount);
         const next = Math.max(previous, Number(score) || 0);
-        scores[difficulty] = next;
+        scores[key] = next;
         write(keys.bestScores, scores);
         return { previous, best: next, isNewBest: next > previous };
     }
@@ -88,13 +99,98 @@
         return next;
     }
 
+    function getLifetimeStats() {
+        return {
+            gamesCompleted: 0,
+            roundsWon: 0,
+            roundsLost: 0,
+            totalTime: 0,
+            currentDailyStreak: 0,
+            bestDailyStreak: 0,
+            lastDailyDate: null,
+            ...read(keys.lifetimeStats, {})
+        };
+    }
+
+    function recordCompletedSession(summary) {
+        const stats = getLifetimeStats();
+        stats.gamesCompleted++;
+        stats.roundsWon += Math.max(0, Number(summary.roundsWon) || 0);
+        stats.roundsLost += Math.max(0, Number(summary.roundsLost) || 0);
+        stats.totalTime += Math.max(0, Number(summary.totalTime) || 0);
+        write(keys.lifetimeStats, stats);
+        return stats;
+    }
+
+    function getDailyResults() {
+        const results = read(keys.dailyResults, {});
+        return results && typeof results === "object" && !Array.isArray(results)
+            ? results
+            : {};
+    }
+
+    function getDailyResult(dateKey) {
+        return getDailyResults()[dateKey] || null;
+    }
+
+    function previousDateKey(dateKey) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+        if (!match) return null;
+        const date = new Date(Date.UTC(
+            Number(match[1]),
+            Number(match[2]) - 1,
+            Number(match[3])
+        ));
+        date.setUTCDate(date.getUTCDate() - 1);
+        return date.toISOString().slice(0, 10);
+    }
+
+    function recordDailyResult(dateKey, result) {
+        const results = getDailyResults();
+        if (results[dateKey]) {
+            return {
+                record: results[dateKey],
+                isFirstAttempt: false,
+                stats: getLifetimeStats()
+            };
+        }
+
+        const record = {
+            score: Number(result.score) || 0,
+            won: Boolean(result.won),
+            elapsedSeconds: Math.max(0, Number(result.elapsedSeconds) || 0)
+        };
+        results[dateKey] = record;
+        const recentEntries = Object.entries(results)
+            .sort(([left], [right]) => right.localeCompare(left))
+            .slice(0, 31);
+        write(keys.dailyResults, Object.fromEntries(recentEntries));
+
+        const stats = getLifetimeStats();
+        stats.currentDailyStreak = stats.lastDailyDate === previousDateKey(dateKey)
+            ? stats.currentDailyStreak + 1
+            : 1;
+        stats.bestDailyStreak = Math.max(
+            stats.bestDailyStreak,
+            stats.currentDailyStreak
+        );
+        stats.lastDailyDate = dateKey;
+        write(keys.lifetimeStats, stats);
+        return { record, isFirstAttempt: true, stats };
+    }
+
     return {
         loadSettings,
         saveSettings,
         getBestScores,
+        getBestScore,
         recordSoloScore,
         getRecentWords,
         rememberWords,
-        incrementPlayCount
+        incrementPlayCount,
+        getLifetimeStats,
+        recordCompletedSession,
+        getDailyResult,
+        recordDailyResult
     };
 });
