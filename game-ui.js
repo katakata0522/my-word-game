@@ -15,6 +15,9 @@
     ];
     const elements = {
         setupForm: byId("setup-form"),
+        dailyStartButton: byId("daily-start-button"),
+        dailyStatus: byId("daily-status"),
+        lifetimeStats: byId("lifetime-stats"),
         playerSettings: byId("player-settings"),
         playerOneName: byId("player-one-name"),
         playerTwoName: byId("player-two-name"),
@@ -25,6 +28,7 @@
         roundHeading: byId("round-heading"),
         scoreboard: byId("scoreboard"),
         category: byId("category-label"),
+        meaningHint: byId("meaning-hint"),
         wordDisplay: byId("word-display"),
         life: byId("life-status"),
         timer: byId("timer"),
@@ -51,6 +55,7 @@
         finalScores: byId("final-scores"),
         sessionStats: byId("session-stats"),
         replayButton: byId("replay-button"),
+        shareButton: byId("share-button"),
         overtimeButton: byId("overtime-button"),
         settingsButton: byId("settings-button"),
         confirmDialog: byId("confirm-dialog"),
@@ -63,6 +68,9 @@
     let pendingConfirmAction = null;
     let soundEnabled = true;
     let finalResultRecorded = false;
+    let sessionStatsRecorded = false;
+    let lastStartWasDaily = false;
+    let dailyShareText = "";
 
     function selectedMode() {
         return document.querySelector('input[name="game-mode"]:checked')?.value || "solo";
@@ -89,10 +97,31 @@
 
     function updateBestScore() {
         const difficulty = elements.difficulty.value;
+        const roundCount = Number(elements.roundCount.value);
         const label = game.DIFFICULTIES[difficulty].label;
-        const best = storage.getBestScores()[difficulty] || 0;
-        elements.bestScore.textContent = `${label}の自己ベスト: ${best}点`;
+        const best = storage.getBestScore(difficulty, roundCount);
+        elements.bestScore.textContent = `${label}・${roundCount}ラウンドの自己ベスト: ${best}点`;
         elements.bestScore.hidden = selectedMode() !== "solo";
+    }
+
+    function localDateKey(date = new Date()) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function updateStartStats() {
+        const stats = storage.getLifetimeStats();
+        elements.lifetimeStats.textContent = stats.gamesCompleted
+            ? `通算 ${stats.gamesCompleted}ゲーム・正解 ${stats.roundsWon}問・最長連続挑戦 ${stats.bestDailyStreak}日`
+            : "最初のゲームを遊ぶと、ここに通算成績が残ります。";
+
+        const daily = storage.getDailyResult(localDateKey());
+        elements.dailyStatus.textContent = daily
+            ? `挑戦済み：${daily.won ? "正解" : "失敗"}・${daily.score}点`
+            : "今日の記録はまだありません。最初の結果が記録されます。";
+        elements.dailyStartButton.textContent = daily ? "練習する" : "挑戦する";
     }
 
     function updateAudioButtons() {
@@ -155,10 +184,7 @@
 
     function renderTimer() {
         if (!session || session.phase !== "playing") return;
-        const elapsed = Math.max(
-            0,
-            Math.floor((Date.now() - session.roundStartAt) / 1000)
-        );
+        const elapsed = game.getElapsedSeconds(session, Date.now());
         elements.timer.textContent = `経過時間: ${elapsed}秒`;
     }
 
@@ -184,9 +210,11 @@
 
     function renderWord() {
         elements.wordDisplay.replaceChildren();
-        game.getMaskedCharacters(session).forEach(character => {
+        game.getMaskedCharacters(session).forEach((character, index) => {
             const span = document.createElement("span");
-            span.className = "word-character";
+            span.className = session.revealed[index]
+                ? "word-character is-revealed"
+                : "word-character is-hidden";
             span.textContent = character;
             elements.wordDisplay.append(span);
         });
@@ -204,13 +232,18 @@
 
     function renderGame(tone = "neutral") {
         const roundNumber = session.currentRoundIndex + 1;
-        elements.modeLabel.textContent = session.mode === "solo"
-            ? "1人プレイ"
-            : "2人対戦";
-        elements.roundHeading.textContent = session.isOvertime
-            ? "延長戦"
-            : `ラウンド ${roundNumber} / ${session.roundCount}`;
+        elements.modeLabel.textContent = session.challenge === "daily"
+            ? "日替わりチャレンジ"
+            : session.mode === "solo"
+                ? "1人プレイ"
+                : "2人対戦";
+        elements.roundHeading.textContent = session.challenge === "daily"
+            ? "今日の一問"
+            : session.isOvertime
+                ? "延長戦"
+                : `ラウンド ${roundNumber} / ${session.roundCount}`;
         elements.category.textContent = `カテゴリ: ${session.wordData.category}`;
+        elements.meaningHint.textContent = session.wordData.hint;
         elements.life.textContent = `残りライフ ${session.lives} / ${session.maxLives}`;
         elements.life.setAttribute(
             "aria-label",
@@ -292,10 +325,11 @@
             addResultRow(elements.roundResultScores, "合計", `${outcome.totalScores[0]}点`);
         } else {
             session.players.forEach((player, index) => {
+                const roundScore = outcome.roundScores[index];
                 addResultRow(
                     elements.roundResultScores,
                     player.name,
-                    `+${outcome.roundScores[index]}点（合計 ${outcome.totalScores[index]}点）`
+                    `${roundScore >= 0 ? "+" : ""}${roundScore}点（合計 ${outcome.totalScores[index]}点）`
                 );
             });
         }
@@ -309,14 +343,13 @@
 
     function celebrate() {
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        if (typeof window.confetti === "function") {
-            window.confetti({
-                particleCount: 120,
-                spread: 80,
-                origin: { y: 0.65 },
-                colors: ["#1267a3", "#18794e", "#f0b429"]
-            });
-        }
+        const resultCard = byId("final-result-screen");
+        resultCard.classList.remove("is-celebrating");
+        requestAnimationFrame(() => resultCard.classList.add("is-celebrating"));
+        window.setTimeout(
+            () => resultCard.classList.remove("is-celebrating"),
+            700
+        );
     }
 
     function showFinalResult() {
@@ -329,18 +362,55 @@
         const totalScore = session.players[0].score;
         let shouldCelebrate = false;
         if (session.mode === "solo") {
-            const record = finalResultRecorded
-                ? { best: storage.getBestScores()[session.difficulty], isNewBest: false }
-                : storage.recordSoloScore(session.difficulty, totalScore);
+            if (session.challenge === "daily") {
+                const dailyResult = finalResultRecorded
+                    ? {
+                        record: storage.getDailyResult(session.dailyDateKey),
+                        isFirstAttempt: false,
+                        stats: storage.getLifetimeStats()
+                    }
+                    : storage.recordDailyResult(session.dailyDateKey, {
+                        score: totalScore,
+                        won: session.stats.correctRounds === 1,
+                        elapsedSeconds: session.stats.totalTime
+                    });
+                elements.finalResultTitle.textContent = session.stats.correctRounds
+                    ? "今日の一問、正解！"
+                    : "今日の挑戦は終了";
+                elements.finalSummary.textContent = dailyResult.isFirstAttempt
+                    ? `今日の記録は${totalScore}点・連続挑戦${dailyResult.stats.currentDailyStreak}日です。`
+                    : `練習結果は${totalScore}点です。今日の正式記録は${dailyResult.record.score}点です。`;
+                dailyShareText = [
+                    `言葉当てゲーム 今日の一問 ${session.dailyDateKey}`,
+                    `${session.stats.correctRounds ? "正解" : "失敗"}・${totalScore}点・${session.stats.totalTime}秒`,
+                    session.stats.correctRounds ? "🟩 今日もひらめいた！" : "⬜ また明日挑戦！"
+                ].join("\n");
+                shouldCelebrate = session.stats.correctRounds === 1;
+            } else {
+                const record = finalResultRecorded
+                    ? {
+                        best: storage.getBestScore(
+                            session.difficulty,
+                            session.originalRoundCount
+                        ),
+                        isNewBest: false
+                    }
+                    : storage.recordSoloScore(
+                        session.difficulty,
+                        session.originalRoundCount,
+                        totalScore
+                    );
+                elements.finalResultTitle.textContent = session.stats.correctRounds === session.roundCount
+                    ? "全ラウンドクリア！"
+                    : "チャレンジ終了";
+                elements.finalSummary.textContent = record.isNewBest
+                    ? `新記録！ 合計 ${totalScore}点`
+                    : `合計 ${totalScore}点・自己ベスト ${record.best}点`;
+                shouldCelebrate = record.isNewBest
+                    || session.stats.correctRounds === session.roundCount;
+            }
             finalResultRecorded = true;
-            elements.finalResultTitle.textContent = session.stats.correctRounds === session.roundCount
-                ? "全ラウンドクリア！"
-                : "チャレンジ終了";
-            elements.finalSummary.textContent = record.isNewBest
-                ? `新記録！ 合計 ${totalScore}点`
-                : `合計 ${totalScore}点・自己ベスト ${record.best}点`;
             addResultRow(elements.finalScores, "合計スコア", `${totalScore}点`);
-            shouldCelebrate = record.isNewBest || session.stats.correctRounds === session.roundCount;
         } else {
             const winner = game.getWinner(session);
             if (winner === -1) {
@@ -354,6 +424,15 @@
             session.players.forEach(player => {
                 addResultRow(elements.finalScores, player.name, `${player.score}点`);
             });
+        }
+
+        if (!sessionStatsRecorded) {
+            storage.recordCompletedSession({
+                roundsWon: session.stats.correctRounds,
+                roundsLost: session.stats.failedRounds,
+                totalTime: session.stats.totalTime
+            });
+            sessionStatsRecorded = true;
         }
 
         const stats = [
@@ -375,23 +454,44 @@
         });
 
         elements.overtimeButton.hidden = !game.canStartOvertime(session);
+        elements.shareButton.hidden = session.challenge !== "daily";
+        elements.replayButton.textContent = session.challenge === "daily"
+            ? "練習でもう一度"
+            : "同じ設定でもう一度";
         storage.rememberWords(session.roundHistory.map(round => round.word));
         updateBestScore();
+        updateStartStats();
         if (shouldCelebrate) celebrate();
     }
 
-    function startNewSession() {
-        const settings = currentSettings();
-        const recentWords = storage.getRecentWords();
+    function startNewSession(options = {}) {
+        const isDaily = options.daily === true;
+        const settings = isDaily
+            ? {
+                mode: "solo",
+                difficulty: "normal",
+                roundCount: 1,
+                soundEnabled
+            }
+            : currentSettings();
+        const recentWords = isDaily ? [] : storage.getRecentWords();
         const extraWords = settings.mode === "versus" ? 1 : 0;
         try {
-            const selectedWords = wordsApi.selectWords({
-                difficulty: settings.difficulty,
-                count: settings.roundCount + extraWords,
-                recentWords
-            });
+            const dateKey = localDateKey();
+            const selectedWords = isDaily
+                ? [wordsApi.selectDailyWord({
+                    dateKey,
+                    difficulty: settings.difficulty
+                })]
+                : wordsApi.selectWords({
+                    difficulty: settings.difficulty,
+                    count: settings.roundCount + extraWords,
+                    recentWords
+                });
             session = game.createSession({
                 ...settings,
+                challenge: isDaily ? "daily" : "standard",
+                dailyDateKey: isDaily ? dateKey : null,
                 playerNames: [
                     elements.playerOneName.value,
                     elements.playerTwoName.value
@@ -406,7 +506,10 @@
         }
 
         finalResultRecorded = false;
-        storage.saveSettings(settings);
+        sessionStatsRecorded = false;
+        lastStartWasDaily = isDaily;
+        dailyShareText = "";
+        if (!isDaily) storage.saveSettings(settings);
         storage.incrementPlayCount();
         showGameScreen();
     }
@@ -457,8 +560,8 @@
     function requestHint() {
         const player = session.players[session.currentPlayer];
         const message = session.mode === "versus"
-            ? `${player.name}が最大150点を使ってヒントを見ます。ヒントを使うとターンを交代します。`
-            : "最大150点を使ってヒントを見ます。";
+            ? `${player.name}が150点を使って文字を一つ開きます。使用後はターンを交代します。`
+            : "150点を使って文字を一つ開きます。";
         openConfirm(message, "ヒントを見る", () => {
             const result = game.useHint(session, Math.random, Date.now());
             if (result.accepted) playEffect("hint");
@@ -477,6 +580,24 @@
         session = null;
         showScreen(byId("start-screen"));
         updateBestScore();
+        updateStartStats();
+    }
+
+    async function shareDailyResult() {
+        if (!dailyShareText) return;
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: "言葉当てゲーム 今日の一問",
+                    text: dailyShareText
+                });
+                return;
+            }
+            await navigator.clipboard.writeText(dailyShareText);
+            elements.shareButton.textContent = "結果をコピーしました";
+        } catch (_) {
+            elements.shareButton.textContent = "共有できませんでした";
+        }
     }
 
     function initialize() {
@@ -492,6 +613,7 @@
         setMode(settings.mode === "versus" ? "versus" : "solo");
         updateAudioButtons();
         updateBestScore();
+        updateStartStats();
         showScreen(byId("start-screen"));
     }
 
@@ -499,6 +621,10 @@
         input.addEventListener("change", () => setMode(input.value));
     });
     elements.difficulty.addEventListener("change", updateBestScore);
+    elements.roundCount.addEventListener("change", updateBestScore);
+    elements.dailyStartButton.addEventListener("click", () => {
+        startNewSession({ daily: true });
+    });
     elements.setupForm.addEventListener("submit", event => {
         event.preventDefault();
         startNewSession();
@@ -529,7 +655,10 @@
             showFinalResult();
         }
     });
-    elements.replayButton.addEventListener("click", startNewSession);
+    elements.replayButton.addEventListener("click", () => {
+        startNewSession({ daily: lastStartWasDaily });
+    });
+    elements.shareButton.addEventListener("click", shareDailyResult);
     elements.settingsButton.addEventListener("click", returnToSettings);
     elements.overtimeButton.addEventListener("click", () => {
         if (game.startOvertime(session, Date.now())) {
@@ -542,6 +671,18 @@
             pendingConfirmAction();
         }
         pendingConfirmAction = null;
+    });
+    document.addEventListener("visibilitychange", () => {
+        if (!session || session.phase !== "playing") return;
+        if (document.hidden) {
+            game.pauseRound(session, Date.now());
+            stopTimer();
+            audio.bgm.pause();
+        } else {
+            game.resumeRound(session, Date.now());
+            startTimer();
+            playBgm();
+        }
     });
 
     initialize();
