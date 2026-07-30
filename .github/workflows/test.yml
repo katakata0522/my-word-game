@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +20,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Check JavaScript syntax
         run: |
@@ -33,14 +37,18 @@ jobs:
           node --check tests/game-smoke.cjs
           node --check tests/words.cjs
           node --check tests/storage.cjs
+          node --check tests/static-server.cjs
+          node --check tests/browser.spec.cjs
+          node --check playwright.config.cjs
 
       - name: Run regression checks
-        run: |
-          node tests/static-check.cjs
-          node tests/audio-engine.cjs
-          node tests/game-smoke.cjs
-          node tests/words.cjs
-          node tests/storage.cjs
+        run: npm test
 
       - name: Validate HTML
-        run: npx --yes html-validate@9.7.1 index.html
+        run: npm run validate:html
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: npm run test:e2e
