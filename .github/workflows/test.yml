@@ -26,6 +26,11 @@ jobs:
           node --check audio-engine.js
           node --check game_ver2.js
           node --check tests/static-check.cjs
+          node --check tests/audio-engine.cjs
+          node --check tests/game-smoke.cjs
 
-      - name: Check local audio references
-        run: node tests/static-check.cjs
+      - name: Run regression checks
+        run: |
+          node tests/static-check.cjs
+          node tests/audio-engine.cjs
+          node tests/game-smoke.cjs
