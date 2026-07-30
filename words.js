@@ -91,7 +91,7 @@
             ["ごはん", "米を炊いて作る主食"],
             ["ぱん", "小麦粉をこねて焼く食べ物"],
             ["うどん", "太くて白い麺料理"],
-            ["そば", "そば粉から作る細い麺料理"],
+            ["そば", "香りがあり、灰色がかった細い麺料理"],
             ["らーめん", "スープと中華麺を合わせた料理"],
             ["すし", "酢飯と魚介などを合わせる料理"],
             ["かれー", "香辛料のきいたルーをご飯にかける料理"],
@@ -224,6 +224,38 @@
         ]
     };
 
+    const difficultyOverrides = {
+        easy: new Set(`
+            りんご ばなな みかん いちご ぶどう もも すいか めろん なし かき くり うめ れもん
+            とまと なす にんじん だいこん かぼちゃ れたす ごぼう かぶ おくら もやし
+            いぬ ねこ うさぎ ぱんだ ぞう きりん とら くま きつね たぬき さる こあら かば さい りす ひつじ やぎ うま
+            ごはん ぱん うどん そば すし ぴざ ぷりん けーき おにぎり
+            くるま でんしゃ ばす ばいく ふね よっと
+            つくえ いす のーと はさみ のり ぷーる えんそく
+            たいよう ほし つき くも そら うみ やま かわ いけ もり にじ たき しま
+            とけい かさ くつ ぼうし かばん さいふ かぎ でんわ てれび かめら たおる
+        `.trim().split(/\s+/)),
+        hard: new Set(`
+            ぱぱいや ぶるーべりー らずべりー どらごんふるーつ ざくろ あけび
+            ほうれんそう とうもろこし ぶろっこりー かりふらわー あすぱらがす
+            かんがるー はむすたー
+            さんどいっち おこのみやき あいすくりーむ ちょこれーと
+            きゅうきゅうしゃ しょうぼうしゃ しんかんせん へりこぷたー せんすいかん
+            ほばーくらふと とれーらー ぶるどーざー しょべるかー ろめんでんしゃ けーぶるかー
+            きょうかしょ らんどせる たいそうぎ たいいくかん としょしつ きゅうしょく
+            ほーむるーむ うんどうかい
+            すまーとふぉん れいぞうこ せんたくき でんしれんじ せんぷうき
+        `.trim().split(/\s+/))
+    };
+
+    const answerAliases = {
+        きうい: ["きういふるーつ"],
+        ぱいん: ["ぱいなっぷる"],
+        かれー: ["かれーらいす"],
+        すまーとふぉん: ["すまほ"],
+        ぱそこん: ["ぱーそなるこんぴゅーたー"]
+    };
+
     function splitCharacters(text) {
         if (typeof Intl !== "undefined" && Intl.Segmenter) {
             return [...new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)]
@@ -233,10 +265,13 @@
     }
 
     function difficultyFor(word) {
+        if (difficultyOverrides.easy.has(word)) return "easy";
+        if (difficultyOverrides.hard.has(word)) return "hard";
         const length = splitCharacters(word).length;
-        if (length <= 3) return "easy";
-        if (length <= 5) return "normal";
-        return "hard";
+        const hasComplexSpelling = /[ゃゅょぁぃぅぇぉっー]/u.test(word);
+        if (length <= 3 && !hasComplexSpelling) return "easy";
+        if (length >= 7 || (length >= 6 && hasComplexSpelling)) return "hard";
+        return "normal";
     }
 
     const words = Object.entries(groups).flatMap(([category, entries]) =>
@@ -244,7 +279,8 @@
             word,
             category,
             difficulty: difficultyFor(word),
-            hint
+            hint,
+            acceptedAnswers: [word, ...(answerAliases[word] || [])]
         }))
     );
 
@@ -257,11 +293,41 @@
         return result;
     }
 
+    function balancedOrder(items, random = Math.random) {
+        const queues = new Map();
+        items.forEach(item => {
+            if (!queues.has(item.category)) queues.set(item.category, []);
+            queues.get(item.category).push(item);
+        });
+        queues.forEach((queue, category) => {
+            queues.set(category, shuffle(queue, random));
+        });
+
+        const result = [];
+        let categories = shuffle([...queues.keys()], random);
+        while (categories.length) {
+            const nextCategories = [];
+            categories.forEach(category => {
+                const item = queues.get(category).shift();
+                if (item) result.push(item);
+                if (queues.get(category).length) nextCategories.push(category);
+            });
+            categories = shuffle(nextCategories, random);
+        }
+        return result;
+    }
+
     function selectWords({ difficulty, count, recentWords = [], random = Math.random }) {
         const pool = words.filter(item => item.difficulty === difficulty);
         const recent = new Set(recentWords);
-        const fresh = shuffle(pool.filter(item => !recent.has(item.word)), random);
-        const fallback = shuffle(pool.filter(item => recent.has(item.word)), random);
+        const fresh = balancedOrder(
+            pool.filter(item => !recent.has(item.word)),
+            random
+        );
+        const fallback = balancedOrder(
+            pool.filter(item => recent.has(item.word)),
+            random
+        );
         const selected = [...fresh, ...fallback].slice(0, count);
         if (selected.length < count) {
             throw new Error(`難易度 ${difficulty} の単語が不足しています`);
@@ -269,11 +335,42 @@
         return selected;
     }
 
+    function hashSeed(value) {
+        let hash = 2166136261;
+        for (const character of String(value)) {
+            hash ^= character.codePointAt(0);
+            hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+    }
+
+    function seededRandom(seed) {
+        let value = hashSeed(seed) || 1;
+        return function() {
+            value += 0x6D2B79F5;
+            let next = value;
+            next = Math.imul(next ^ next >>> 15, next | 1);
+            next ^= next + Math.imul(next ^ next >>> 7, next | 61);
+            return ((next ^ next >>> 14) >>> 0) / 4294967296;
+        };
+    }
+
+    function selectDailyWord({ dateKey, difficulty = "normal" }) {
+        return selectWords({
+            difficulty,
+            count: 1,
+            recentWords: [],
+            random: seededRandom(`${dateKey}:${difficulty}:v1`)
+        })[0];
+    }
+
     return {
         words,
         groups,
         splitCharacters,
         difficultyFor,
-        selectWords
+        selectWords,
+        selectDailyWord,
+        seededRandom
     };
 });
