@@ -23,14 +23,24 @@ jobs:
 
       - name: Check JavaScript syntax
         run: |
+          node --check words.js
+          node --check game-state.js
+          node --check storage.js
           node --check audio-engine.js
-          node --check game_ver2.js
+          node --check game-ui.js
           node --check tests/static-check.cjs
           node --check tests/audio-engine.cjs
           node --check tests/game-smoke.cjs
+          node --check tests/words.cjs
+          node --check tests/storage.cjs
 
       - name: Run regression checks
         run: |
           node tests/static-check.cjs
           node tests/audio-engine.cjs
           node tests/game-smoke.cjs
+          node tests/words.cjs
+          node tests/storage.cjs
+
+      - name: Validate HTML
+        run: npx --yes html-validate@9.7.1 index.html
