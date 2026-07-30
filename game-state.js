@@ -12,12 +12,16 @@
     };
 
     const SCORE = {
-        letterPerPosition: 100,
-        soloClear: 500,
-        soloAnswer: 300,
-        versusAnswer: 500,
+        letterPerPosition: 80,
+        soloClear: 400,
+        soloAnswerPerHidden: 120,
+        versusAnswerBase: 200,
+        versusAnswerPerHidden: 100,
+        versusWrongAnswerPenalty: 100,
         lifeBonus: 50,
-        maxTimeBonus: 300,
+        maxTimeBonus: 400,
+        timeTargetBase: 15,
+        timeTargetPerCharacter: 7,
         hintPenalty: 150
     };
 
@@ -66,6 +70,8 @@
 
         const state = {
             mode,
+            challenge: options.challenge === "daily" ? "daily" : "standard",
+            dailyDateKey: options.dailyDateKey || null,
             difficulty,
             roundCount,
             originalRoundCount: roundCount,
@@ -107,6 +113,8 @@
         state.currentPlayer = state.mode === "versus" ? roundIndex % 2 : 0;
         state.startingPlayer = state.currentPlayer;
         state.roundStartAt = now;
+        state.pausedDuration = 0;
+        state.pauseStartedAt = null;
         state.roundScoreStart = state.players.map(player => player.score);
         state.roundBreakdown = state.players.map(() => ({
             letters: 0,
@@ -150,14 +158,24 @@
     }
 
     function addScore(state, playerIndex, points) {
-        state.players[playerIndex].score = Math.max(
-            0,
-            state.players[playerIndex].score + points
-        );
+        state.players[playerIndex].score += points;
     }
 
     function getElapsedSeconds(state, now) {
-        return Math.max(0, Math.floor((now - state.roundStartAt) / 1000));
+        const activePause = state.pauseStartedAt === null
+            ? 0
+            : Math.max(0, now - state.pauseStartedAt);
+        return Math.max(
+            0,
+            Math.floor(
+                (now - state.roundStartAt - state.pausedDuration - activePause) / 1000
+            )
+        );
+    }
+
+    function getTimeTargetSeconds(state) {
+        return SCORE.timeTargetBase
+            + state.characters.length * SCORE.timeTargetPerCharacter;
     }
 
     function finishRound(state, won, method, now = Date.now()) {
@@ -173,20 +191,21 @@
 
         if (state.mode === "solo" && won) {
             breakdown.clear = SCORE.soloClear;
-            breakdown.answer = method === "answer" ? SCORE.soloAnswer : 0;
+            breakdown.answer = state.roundBreakdown[0].answer;
             breakdown.lives = state.lives * SCORE.lifeBonus;
-            breakdown.time = Math.max(
-                0,
-                SCORE.maxTimeBonus - Math.max(0, elapsedSeconds - 30) * 10
+            const timeTarget = getTimeTargetSeconds(state);
+            breakdown.time = Math.round(
+                SCORE.maxTimeBonus
+                * Math.max(0, timeTarget - elapsedSeconds)
+                / timeTarget
             );
             state.roundBreakdown[0].clear = breakdown.clear;
-            state.roundBreakdown[0].answer = breakdown.answer;
             state.roundBreakdown[0].lives = breakdown.lives;
             state.roundBreakdown[0].time = breakdown.time;
             addScore(
                 state,
                 0,
-                breakdown.clear + breakdown.answer + breakdown.lives + breakdown.time
+                breakdown.clear + breakdown.lives + breakdown.time
             );
         }
 
@@ -286,18 +305,40 @@
 
         const actingPlayer = state.currentPlayer;
         state.usedAnswers.push(answer);
-        if (answer === state.wordData.word) {
-            if (state.mode === "versus") {
-                addScore(state, actingPlayer, SCORE.versusAnswer);
-                state.roundBreakdown[actingPlayer].answer += SCORE.versusAnswer;
-            }
+        const acceptedAnswers = (state.wordData.acceptedAnswers || [state.wordData.word])
+            .map(normalizeJapanese);
+        if (acceptedAnswers.includes(answer)) {
+            const hiddenCount = state.revealed.filter(value => !value).length;
+            const answerPoints = state.mode === "versus"
+                ? SCORE.versusAnswerBase + hiddenCount * SCORE.versusAnswerPerHidden
+                : hiddenCount * SCORE.soloAnswerPerHidden;
+            addScore(state, actingPlayer, answerPoints);
+            state.roundBreakdown[actingPlayer].answer += answerPoints;
             state.message = `正解！答えは「${state.wordData.word}」でした。`;
             finishRound(state, true, "answer", now);
             return {
                 accepted: true,
                 correct: true,
                 actingPlayer,
+                answerPoints,
                 roundEnded: true,
+                message: state.message
+            };
+        }
+
+        if (state.mode === "versus") {
+            addScore(state, actingPlayer, -SCORE.versusWrongAnswerPenalty);
+            state.roundBreakdown[actingPlayer].answer -= SCORE.versusWrongAnswerPenalty;
+            state.stats.misses++;
+            state.message = `残念！「${answer}」ではありません。${SCORE.versusWrongAnswerPenalty}点減点です。`;
+            switchPlayer(state);
+            return {
+                accepted: true,
+                correct: false,
+                actingPlayer,
+                scorePenalty: SCORE.versusWrongAnswerPenalty,
+                lostLives: 0,
+                roundEnded: false,
                 message: state.message
             };
         }
@@ -345,13 +386,8 @@
         const revealedCount = revealCharacter(state, character);
         state.hintsRemaining[actingPlayer]--;
         state.stats.hintsUsed++;
-        const scoreBeforeHint = state.players[actingPlayer].score;
-        state.players[actingPlayer].score = Math.max(
-            state.roundScoreStart[actingPlayer],
-            scoreBeforeHint - SCORE.hintPenalty
-        );
-        state.roundBreakdown[actingPlayer].hint -=
-            scoreBeforeHint - state.players[actingPlayer].score;
+        addScore(state, actingPlayer, -SCORE.hintPenalty);
+        state.roundBreakdown[actingPlayer].hint -= SCORE.hintPenalty;
         state.message = `ヒント！「${character}」が${revealedCount}個開きました。`;
 
         if (isSolved(state)) {
@@ -395,6 +431,19 @@
         return true;
     }
 
+    function pauseRound(state, now = Date.now()) {
+        if (state.phase !== "playing" || state.pauseStartedAt !== null) return false;
+        state.pauseStartedAt = now;
+        return true;
+    }
+
+    function resumeRound(state, now = Date.now()) {
+        if (state.pauseStartedAt === null) return false;
+        state.pausedDuration += Math.max(0, now - state.pauseStartedAt);
+        state.pauseStartedAt = null;
+        return true;
+    }
+
     function getWinner(state) {
         if (state.mode !== "versus" || state.phase !== "session-end") return null;
         if (state.players[0].score === state.players[1].score) return -1;
@@ -410,6 +459,8 @@
         createSession,
         startRound,
         getMaskedCharacters,
+        getElapsedSeconds,
+        getTimeTargetSeconds,
         submitLetter,
         submitAnswer,
         useHint,
@@ -417,6 +468,8 @@
         continueSession,
         canStartOvertime,
         startOvertime,
+        pauseRound,
+        resumeRound,
         getWinner
     };
 });
