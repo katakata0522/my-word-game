@@ -4,24 +4,37 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const audioEngine = fs.readFileSync(path.join(root, "audio-engine.js"), "utf8");
 
 for (const filename of ["bgm.mp3", "correct.mp3", "wrong.mp3", "win.mp3", "lose.mp3", "hint.mp3"]) {
     assert.equal(html.includes(filename), false, `${filename} の欠落参照が残っています`);
 }
 
-const audioEnginePosition = html.indexOf('src="audio-engine.js"');
-const gamePosition = html.indexOf('src="game_ver2.js"');
-assert.ok(audioEnginePosition >= 0, "audio-engine.js が読み込まれていません");
-assert.ok(gamePosition >= 0, "game_ver2.js が読み込まれていません");
-assert.ok(audioEnginePosition < gamePosition, "audio-engine.js はゲーム本体より先に読み込む必要があります");
-
-for (const filename of ["audio-engine.js", "game_ver2.js"]) {
+const scripts = [
+    "words.js",
+    "game-state.js",
+    "storage.js",
+    "audio-engine.js",
+    "game-ui.js"
+];
+let previousPosition = -1;
+for (const filename of scripts) {
     assert.ok(fs.existsSync(path.join(root, filename)), `${filename} が存在しません`);
+    const position = html.indexOf(`src="${filename}"`);
+    assert.ok(position >= 0, `${filename} が読み込まれていません`);
+    assert.ok(position > previousPosition, `${filename} の読込順が不正です`);
+    previousPosition = position;
 }
 
-assert.ok(html.includes('id="audio-toggle-button"'), "音声切替ボタンがありません");
-assert.ok(html.includes("@media (max-width: 600px)"), "スマホ用レイアウトがありません");
+assert.equal(html.includes('src="game_ver2.js"'), false, "旧ゲーム本体が読み込まれています");
+assert.match(html, /<title>言葉当てゲーム Ver\.3<\/title>/);
+assert.ok(html.includes('value="solo"'));
+assert.ok(html.includes('value="versus"'));
+assert.ok(html.includes('id="overtime-button"'));
+assert.ok(css.includes("@media (prefers-reduced-motion: reduce)"));
+assert.ok(css.includes("@media (max-width: 360px)"));
+
 assert.match(
     html,
     /<script\s+defer\s+src="https:\/\/cdn\.jsdelivr\.net\/npm\/canvas-confetti@1\.9\.3\/dist\/confetti\.browser\.min\.js"><\/script>/,
@@ -29,12 +42,12 @@ assert.match(
 );
 
 const buttonTags = html.match(/<button\b[^>]*>/g) || [];
-assert.ok(buttonTags.length > 0, "ボタンが見つかりません");
+assert.ok(buttonTags.length >= 12, "必要な操作ボタンが不足しています");
 for (const buttonTag of buttonTags) {
-    assert.match(buttonTag, /\btype="button"/, `type="button" がないボタンです: ${buttonTag}`);
+    assert.match(buttonTag, /\btype="(?:button|submit)"/, `type属性がないボタンです: ${buttonTag}`);
 }
 
 assert.ok(audioEngine.includes("activeOscillators"), "再生中の音を追跡していません");
 assert.ok(audioEngine.includes("setMuted"), "音声ミュート機能がありません");
 
-console.log("静的な音声参照、読込順、操作UIを確認しました");
+console.log("静的参照、画面、レスポンシブ、操作UIを確認しました");
