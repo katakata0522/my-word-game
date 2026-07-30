@@ -31,15 +31,14 @@ assert.equal(html.includes('src="game_ver2.js"'), false, "旧ゲーム本体が�
 assert.match(html, /<title>言葉当てゲーム Ver\.3<\/title>/);
 assert.ok(html.includes('value="solo"'));
 assert.ok(html.includes('value="versus"'));
+assert.ok(html.includes('id="daily-start-button"'));
+assert.ok(html.includes('id="meaning-hint"'));
+assert.ok(html.includes('id="share-button"'));
 assert.ok(html.includes('id="overtime-button"'));
 assert.ok(css.includes("@media (prefers-reduced-motion: reduce)"));
 assert.ok(css.includes("@media (max-width: 360px)"));
 
-assert.match(
-    html,
-    /<script\s+defer\s+src="https:\/\/cdn\.jsdelivr\.net\/npm\/canvas-confetti@1\.9\.3\/dist\/confetti\.browser\.min\.js"><\/script>/,
-    "紙吹雪スクリプトが初期表示をブロックする可能性があります"
-);
+assert.equal(html.includes("cdn.jsdelivr.net"), false, "外部CDN依存が残っています");
 
 const buttonTags = html.match(/<button\b[^>]*>/g) || [];
 assert.ok(buttonTags.length >= 12, "必要な操作ボタンが不足しています");
