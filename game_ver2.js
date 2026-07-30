@@ -16,6 +16,7 @@ const categoryInfoElement = document.getElementById('category-info');
 const lifeInfoElement = document.getElementById('life-info');
 const scoreInfoElement = document.getElementById('score-info');
 const hintButton = document.getElementById('hint-button');
+const audioToggleButton = document.getElementById('audio-toggle-button');
 const bgmAudio = window.gameAudio.bgm;
 const soundCorrect = window.gameAudio.effects.correct;
 const soundWrong = window.gameAudio.effects.wrong;
@@ -119,6 +120,15 @@ function switchPlayer() {
 }
 
 /**
+ * 音声ボタンの状態を更新する関数
+ */
+function updateAudioButton() {
+    const audioEnabled = !window.gameAudio.isMuted();
+    audioToggleButton.textContent = `音声: ${audioEnabled ? 'オン' : 'オフ'}`;
+    audioToggleButton.setAttribute('aria-pressed', String(audioEnabled));
+}
+
+/**
  * 文字が全て当てられたか (勝利したか) をチェックする関数
  */
 function checkWin() {
@@ -216,6 +226,7 @@ function initializeGame() {
 
     // 画面表示を最新の状態にする
     updateDisplay();
+    updateAudioButton();
 
     // 新しいタイマーを開始
     updateTimerDisplay(); // 最初に0秒を表示
@@ -294,6 +305,16 @@ answerButton.addEventListener('click', () => {
 // 「やり直す」ボタン
 resetButton.addEventListener('click', () => {
     initializeGame();
+});
+
+// 「音声」ボタン
+audioToggleButton.addEventListener('click', () => {
+    const shouldMute = !window.gameAudio.isMuted();
+    window.gameAudio.setMuted(shouldMute);
+    updateAudioButton();
+    if (!shouldMute && !gameOver) {
+        playBgm();
+    }
 });
 
 // 「ヒントを見る」ボタン
