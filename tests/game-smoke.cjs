@@ -1,184 +1,129 @@
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const game = require("../game-state.js");
 
-class FakeClassList {
-    constructor() {
-        this.values = new Set();
-    }
-
-    add(...names) {
-        names.forEach(name => this.values.add(name));
-    }
-
-    remove(...names) {
-        names.forEach(name => this.values.delete(name));
-    }
-
-    contains(name) {
-        return this.values.has(name);
-    }
-}
-
-class FakeElement {
-    constructor(id) {
-        this.id = id;
-        this.textContent = "";
-        this.value = "";
-        this.disabled = false;
-        this.classList = new FakeClassList();
-        this.attributes = new Map();
-        this.listeners = new Map();
-    }
-
-    addEventListener(type, listener) {
-        this.listeners.set(type, listener);
-    }
-
-    setAttribute(name, value) {
-        this.attributes.set(name, String(value));
-    }
-
-    getAttribute(name) {
-        return this.attributes.get(name) ?? null;
-    }
-
-    click() {
-        if (!this.disabled) {
-            this.listeners.get("click")?.({ preventDefault() {} });
-        }
-    }
-}
-
-function createAudioHandle() {
-    return {
-        paused: true,
-        currentTime: 0,
-        playCount: 0,
-        pauseCount: 0,
-        play() {
-            this.paused = false;
-            this.playCount++;
-            return Promise.resolve();
-        },
-        pause() {
-            this.paused = true;
-            this.pauseCount++;
-        }
-    };
-}
-
-const ids = [
-    "word-display",
-    "turn-info",
-    "message",
-    "letter-input",
-    "guess-button",
-    "answer-input",
-    "answer-button",
-    "used-letters",
-    "reset-button",
-    "category-info",
-    "life-info",
-    "score-info",
-    "hint-button",
-    "audio-toggle-button",
-    "timer"
-];
-const elements = Object.fromEntries(ids.map(id => [id, new FakeElement(id)]));
-const bgm = createAudioHandle();
-const effects = Object.fromEntries(
-    ["correct", "wrong", "win", "lose", "hint"].map(name => [name, createAudioHandle()])
-);
-const gameAudio = {
-    bgm,
-    effects,
-    muted: false,
-    isMuted() {
-        return this.muted;
-    },
-    setMuted(value) {
-        this.muted = Boolean(value);
-        if (this.muted) this.bgm.pause();
-    }
-};
-
-let intervalId = 0;
-const context = vm.createContext({
-    window: { gameAudio },
-    document: {
-        getElementById(id) {
-            return elements[id] || null;
-        }
-    },
-    console,
-    confetti() {},
-    setInterval() {
-        intervalId++;
-        return intervalId;
-    },
-    clearInterval() {},
-    Date: class extends Date {
-        static now() {
-            return 1_000_000;
-        }
-    },
-    Math: Object.assign(Object.create(Math), { random: () => 0 })
+const word = (value, category = "テスト") => ({
+    word: value,
+    category,
+    difficulty: "normal",
+    hint: "テスト用"
 });
 
-const source = fs.readFileSync(path.join(__dirname, "..", "game_ver2.js"), "utf8");
-vm.runInContext(source, context, { filename: "game_ver2.js" });
+assert.equal(game.normalizeJapanese("  リンゴ  "), "りんご");
+assert.equal(game.normalizeJapanese("ﾊﾟﾝﾀﾞ"), "ぱんだ");
+assert.equal(game.isHiraganaWord("りんご"), true);
+assert.equal(game.isHiraganaWord("apple"), false);
 
-assert.equal(elements["turn-info"].textContent, "プレイヤー 1 の番です");
-assert.equal(elements["life-info"].textContent, `のこり: ${"💖".repeat(10)}`);
-assert.equal(elements["audio-toggle-button"].textContent, "音声: オン");
+const solo = game.createSession({
+    mode: "solo",
+    difficulty: "normal",
+    roundCount: 3,
+    words: [word("りんご"), word("ばなな"), word("みかん")],
+    now: 0
+});
 
-elements["letter-input"].value = "あ";
-elements["guess-button"].click();
-assert.equal(elements["turn-info"].textContent, "プレイヤー 2 の番です");
-assert.equal((elements["life-info"].textContent.match(/🤍/g) || []).length, 1);
-assert.equal(bgm.paused, false);
+assert.equal(solo.phase, "playing");
+assert.equal(solo.lives, 7);
+assert.deepEqual(game.getMaskedCharacters(solo), ["？", "？", "？"]);
 
-const lifeAfterMiss = elements["life-info"].textContent;
-elements["letter-input"].value = "あ";
-elements["guess-button"].click();
-assert.equal(elements["life-info"].textContent, lifeAfterMiss);
-assert.match(elements["message"].textContent, /既に使用されています/);
+let result = game.submitLetter(solo, "リ", 1_000);
+assert.equal(result.accepted, true);
+assert.equal(result.correct, true);
+assert.equal(solo.players[0].score, 100);
+assert.deepEqual(game.getMaskedCharacters(solo), ["り", "？", "？"]);
 
-const displayBeforeHint = elements["word-display"].textContent;
-elements["hint-button"].click();
-assert.notEqual(elements["word-display"].textContent, displayBeforeHint);
-assert.equal(elements["hint-button"].disabled, true);
+const lifeBeforeDuplicate = solo.lives;
+result = game.submitLetter(solo, "り", 2_000);
+assert.equal(result.accepted, false);
+assert.equal(result.reason, "duplicate");
+assert.equal(solo.lives, lifeBeforeDuplicate);
 
-const currentWord = vm.runInContext("currentWord", context);
-elements["answer-input"].value = currentWord;
-elements["answer-button"].click();
-assert.match(elements["message"].textContent, /正解！/);
-assert.equal(elements["answer-button"].disabled, true);
-assert.equal(bgm.paused, true);
+result = game.submitAnswer(solo, "みかん", 3_000);
+assert.equal(result.correct, false);
+assert.equal(result.lostLives, 2);
+assert.equal(solo.lives, 5);
 
-elements["reset-button"].click();
-assert.equal(elements["turn-info"].textContent, "プレイヤー 1 の番です");
-assert.equal(elements["answer-button"].disabled, false);
-assert.equal(elements["score-info"].textContent, "スコア: 0");
+const livesBeforeDuplicateAnswer = solo.lives;
+result = game.submitAnswer(solo, "みかん", 4_000);
+assert.equal(result.accepted, false);
+assert.equal(result.reason, "duplicate");
+assert.equal(solo.lives, livesBeforeDuplicateAnswer);
 
-elements["audio-toggle-button"].click();
-assert.equal(gameAudio.isMuted(), true);
-assert.equal(elements["audio-toggle-button"].textContent, "音声: オフ");
-assert.equal(elements["audio-toggle-button"].getAttribute("aria-pressed"), "false");
+result = game.useHint(solo, () => 0, 5_000);
+assert.equal(result.accepted, true);
+assert.equal(solo.hintsRemaining[0], 0);
+assert.equal(solo.players[0].score, 0);
 
-elements["audio-toggle-button"].click();
-assert.equal(gameAudio.isMuted(), false);
-assert.equal(elements["audio-toggle-button"].textContent, "音声: オン");
-assert.equal(bgm.paused, false);
+result = game.submitAnswer(solo, "りんご", 10_000);
+assert.equal(result.correct, true);
+assert.equal(solo.phase, "round-end");
+assert.equal(solo.roundOutcome.won, true);
+assert.equal(solo.roundOutcome.breakdown.clear, 500);
+assert.equal(solo.roundOutcome.breakdown.answer, 300);
+assert.equal(solo.roundOutcome.breakdown.lives, 250);
+assert.equal(solo.roundOutcome.breakdown.time, 300);
+assert.equal(solo.players[0].score, 1_350);
 
-for (let i = 0; i < 10; i++) {
-    elements["answer-input"].value = "ぜったいにちがう";
-    elements["answer-button"].click();
+assert.equal(game.continueSession(solo, 11_000), true);
+assert.equal(solo.currentRoundIndex, 1);
+assert.equal(solo.lives, 7);
+assert.equal(solo.usedAnswers.length, 0);
+
+const versus = game.createSession({
+    mode: "versus",
+    difficulty: "normal",
+    roundCount: 3,
+    playerNames: ["あお", "あか"],
+    words: [word("こころ"), word("ばなな"), word("みかん"), word("すいか")],
+    now: 0
+});
+
+assert.equal(versus.currentPlayer, 0);
+result = game.submitLetter(versus, "こ", 1_000);
+assert.equal(result.revealedCount, 2);
+assert.equal(versus.players[0].score, 200);
+assert.equal(versus.currentPlayer, 1);
+
+result = game.submitLetter(versus, "あ", 2_000);
+assert.equal(result.correct, false);
+assert.equal(versus.lives, 6);
+assert.equal(versus.currentPlayer, 0);
+
+result = game.submitAnswer(versus, "こころ", 3_000);
+assert.equal(result.correct, true);
+assert.equal(versus.players[0].score, 700);
+assert.equal(versus.roundOutcome.roundScores[0], 700);
+assert.equal(versus.roundOutcome.roundScores[1], 0);
+
+versus.players[1].score = 50;
+assert.equal(game.continueSession(versus, 4_000), true);
+assert.equal(versus.currentPlayer, 1);
+assert.deepEqual(versus.hintsRemaining, [1, 1]);
+
+result = game.useHint(versus, () => 0, 5_000);
+assert.equal(result.accepted, true);
+assert.equal(versus.players[1].score, 50);
+assert.equal(versus.roundBreakdown[1].hint, 0);
+assert.equal(versus.currentPlayer, 0);
+
+const tie = game.createSession({
+    mode: "versus",
+    difficulty: "normal",
+    roundCount: 1,
+    words: [word("ねこ"), word("いぬ")],
+    now: 0
+});
+for (const answer of ["あ", "い", "う", "え"]) {
+    game.submitAnswer(tie, answer, 1_000);
 }
-assert.match(elements["message"].textContent, /ゲームオーバー/);
-assert.equal(elements["answer-button"].disabled, true);
-assert.equal((elements["life-info"].textContent.match(/🤍/g) || []).length, 10);
+assert.equal(tie.phase, "round-end");
+assert.equal(tie.roundOutcome.won, false);
+assert.equal(game.continueSession(tie, 2_000), false);
+assert.equal(tie.phase, "session-end");
+assert.equal(game.getWinner(tie), -1);
+assert.equal(game.canStartOvertime(tie), true);
+assert.equal(game.startOvertime(tie, 3_000), true);
+assert.equal(tie.phase, "playing");
+assert.equal(tie.isOvertime, true);
+assert.equal(tie.wordData.word, "いぬ");
 
-console.log("主要なゲーム進行を確認しました");
+console.log("1人用・2人用・延長戦の主要進行を確認しました");
