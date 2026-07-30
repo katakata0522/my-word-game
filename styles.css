@@ -109,6 +109,7 @@ h1 span {
 }
 
 .setup-card,
+.daily-card,
 .rules-card,
 .word-stage,
 .guess-card,
@@ -122,6 +123,53 @@ h1 span {
 
 .setup-card {
     padding: 24px;
+}
+
+.daily-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 14px;
+    padding: 20px 24px;
+    border-color: #8bbbd6;
+    box-shadow: 0 10px 28px rgba(23, 74, 114, 0.1);
+}
+
+.daily-label {
+    margin: 0 0 4px;
+    color: var(--action);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
+.daily-card h2,
+.section-title {
+    margin: 0;
+    color: var(--brand);
+}
+
+.daily-card h2 {
+    font-size: 1.5rem;
+}
+
+.daily-status {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.section-title {
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+}
+
+.lifetime-stats {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-align: center;
 }
 
 fieldset {
@@ -359,6 +407,7 @@ select {
     margin-top: 2px;
     font-size: 1.35rem;
     font-weight: 900;
+    font-variant-numeric: tabular-nums;
 }
 
 .word-stage {
@@ -377,6 +426,31 @@ select {
     font-weight: 800;
 }
 
+.meaning-clue {
+    max-width: 560px;
+    margin: 0 auto 22px;
+    padding: 14px 18px;
+    border-left: 4px solid var(--success);
+    border-radius: 4px 12px 12px 4px;
+    background: var(--success-soft);
+    text-align: left;
+}
+
+.meaning-clue span {
+    color: var(--success);
+    font-size: 0.76rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
+.meaning-clue p {
+    margin: 5px 0 0;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 750;
+    line-height: 1.55;
+}
+
 .word-display {
     display: flex;
     flex-wrap: wrap;
@@ -390,10 +464,24 @@ select {
     place-items: center;
     width: clamp(36px, 9vw, 54px);
     min-height: clamp(52px, 13vw, 68px);
+    border: 1px solid #aac4d3;
     border-bottom: 4px solid var(--brand);
+    border-radius: 9px 9px 5px 5px;
+    background: #f8fcfe;
     color: var(--brand);
     font-size: clamp(1.65rem, 7vw, 2.5rem);
     font-weight: 900;
+}
+
+.word-character.is-hidden {
+    color: #7891a5;
+}
+
+.word-character.is-revealed {
+    border-color: #7db695;
+    border-bottom-color: var(--success);
+    background: var(--success-soft);
+    animation: tile-reveal 220ms ease-out;
 }
 
 .round-status {
@@ -492,6 +580,10 @@ select {
     margin: 0;
     color: var(--brand);
     font-size: clamp(1.8rem, 7vw, 2.8rem);
+}
+
+.final-result.is-celebrating {
+    animation: result-celebrate 650ms ease-out;
 }
 
 .result-word,
@@ -601,6 +693,29 @@ select {
     }
 }
 
+@keyframes tile-reveal {
+    from {
+        transform: translateY(4px) scale(0.96);
+        opacity: 0.45;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes result-celebrate {
+    0% {
+        box-shadow: var(--shadow);
+    }
+    35% {
+        box-shadow: 0 0 0 6px rgba(24, 121, 78, 0.16), var(--shadow);
+    }
+    100% {
+        box-shadow: var(--shadow);
+    }
+}
+
 @media (max-width: 560px) {
     .app-shell {
         width: min(100% - 20px, 720px);
@@ -608,6 +723,7 @@ select {
     }
 
     .setup-card,
+    .daily-card,
     .word-stage,
     .guess-card,
     .direct-answer {
@@ -617,6 +733,16 @@ select {
     .setup-card,
     .word-stage {
         padding: 18px;
+    }
+
+    .daily-card {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 18px;
+    }
+
+    .daily-card .button {
+        width: 100%;
     }
 
     .mode-options,
