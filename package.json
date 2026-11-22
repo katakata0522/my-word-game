@@ -3,6 +3,8 @@
   "version": "3.1.0",
   "private": true,
   "scripts": {
+    "dev": "node tests/static-server.cjs --studio",
+    "start": "node tests/static-server.cjs --studio",
     "test": "node tests/static-check.cjs && node tests/audio-engine.cjs && node tests/game-smoke.cjs && node tests/words.cjs && node tests/storage.cjs",
     "test:e2e": "playwright test",
     "validate:html": "html-validate index.html"

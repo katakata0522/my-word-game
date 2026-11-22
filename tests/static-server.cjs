@@ -9,6 +9,17 @@ const mimeTypes = {
     ".js": "application/javascript; charset=utf-8"
 };
 
+const studioPreview = process.argv.includes('--studio');
+const studioFiles = new Set([
+  "index.html",
+  "audio-engine.js",
+  "game-state.js",
+  "game-ui.js",
+  "storage.js",
+  "styles.css",
+  "words.js"
+]);
+
 http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
     const relativePath = pathname === "/" ? "index.html" : pathname.slice(1);
@@ -16,6 +27,10 @@ http.createServer((request, response) => {
     if (!filename.startsWith(`${root}${path.sep}`)) {
         response.writeHead(403).end("Forbidden");
         return;
+    }
+    if (studioPreview && !studioFiles.has(relativePath)) {
+      response.writeHead(404).end();
+      return;
     }
     fs.readFile(filename, (error, content) => {
         if (error) {
@@ -29,4 +44,4 @@ http.createServer((request, response) => {
         });
         response.end(content);
     });
-}).listen(4173, "127.0.0.1");
+}).listen(studioPreview ? Number(process.env.PORT || 3000) : 4173, studioPreview ? "0.0.0.0" : "127.0.0.1");
